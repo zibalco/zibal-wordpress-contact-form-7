@@ -27,7 +27,12 @@
                     $value[$k] = $v;
                 }
                 $active_gateway = 'Zibal';
-                $merchantId = $value['gateway_merchantid'];
+                if($value['gateway_merchantid']) {
+                    $merchantId = $value['gateway_merchantid'];
+                } else {
+                    echo 'لطفا کد درگاه (مرچنت) زیبال را در تنظیمات وارد نمایید.';
+                    die();
+                }
                 $url_return = $value['return'];
 
 
