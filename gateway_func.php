@@ -693,7 +693,7 @@ if (is_plugin_active('contact-form-7/wp-contact-form-7.php')) {
 		<table>
          
           <tr>
-            <td>کد درگاه پرداخت (مرچنت) زیبال:</td>';
+            <td>کد درگاه پرداخت (مرچنت) زیبال (جهت تست میتوانید از zibal استفاده بفرمایید):</td>';
         echo '<td><input type="text" style="width:450px;text-align:left;direction:ltr;" name="gateway_merchantid" value="' . $value['gateway_merchantid'] . '">الزامی</td>
           </tr>
         </table> 
