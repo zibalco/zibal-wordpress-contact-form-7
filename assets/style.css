@@ -1,0 +1,91 @@
+.zibal-cf7-payment-wrapper {
+    margin: 20px 0;
+}
+
+.zibal-payment-button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.zibal-payment-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.zibal-payment-button:active {
+    transform: translateY(0);
+}
+
+.zibal-payment-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.zibal-button-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: zibal-spin 0.6s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes zibal-spin {
+    to { transform: rotate(360deg); }
+}
+
+[dir="rtl"] .zibal-button-spinner {
+    margin-right: 0;
+    margin-left: 8px;
+}
+
+.zibal-payment-button.loading .zibal-button-text {
+    opacity: 0.7;
+}
+
+.wpcf7-response-output.zibal-payment-message {
+    border-color: #667eea;
+    background: #f0f3ff;
+    color: #667eea;
+}
+
+input[name="_zibal_amount"] {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .zibal-payment-button {
+        width: 100%;
+        padding: 14px 20px;
+        font-size: 15px;
+    }
+}
+
+@keyframes zibal-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.zibal-cf7-payment-wrapper {
+    animation: zibal-fadeIn 0.4s ease-out;
+}
