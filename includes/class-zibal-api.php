@@ -17,7 +17,7 @@ class Zibal_CF7_API {
         $data = array(
             'merchant' => $this->merchant_id,
             'amount' => absint( $amount ),
-            'callbackUrl' => $callback_url,
+            'callbackUrl' => esc_url_raw( $callback_url ),
         );
         
         if ( ! empty( $args['mobile'] ) ) {
@@ -62,6 +62,7 @@ class Zibal_CF7_API {
     
     private function post( $endpoint, $data ) {
         $url = $this->base_url . $endpoint;
+        $user_agent = $this->get_user_agent();
         
         $response = wp_remote_post( $url, array(
             'headers' => array(
@@ -70,25 +71,78 @@ class Zibal_CF7_API {
             'body' => wp_json_encode( $data ),
             'timeout' => 30,
             'sslverify' => true,
+            'user-agent' => $user_agent,
         ) );
         
         if ( is_wp_error( $response ) ) {
+            if ( function_exists( 'zibal_cf7_log_error' ) ) {
+                zibal_cf7_log_error(
+                    'zibal_api',
+                    __( 'ارتباط با API زیبال ناموفق بود.', 'zibal-cf7' ),
+                    array(
+                        'endpoint' => $endpoint,
+                        'user_agent' => $user_agent,
+                        'error_code' => $response->get_error_code(),
+                        'error_message' => $response->get_error_message(),
+                    ),
+                    'error'
+                );
+            }
+
             return false;
         }
         
         $status_code = wp_remote_retrieve_response_code( $response );
         if ( $status_code !== 200 ) {
+            if ( function_exists( 'zibal_cf7_log_error' ) ) {
+                zibal_cf7_log_error(
+                    'zibal_api',
+                    __( 'API زیبال پاسخ HTTP غیرمنتظره برگرداند.', 'zibal-cf7' ),
+                    array(
+                        'endpoint' => $endpoint,
+                        'user_agent' => $user_agent,
+                        'http_status' => $status_code,
+                        'body' => mb_substr( wp_remote_retrieve_body( $response ), 0, 500 ),
+                    ),
+                    'error'
+                );
+            }
+
             return false;
         }
         
         $body = wp_remote_retrieve_body( $response );
         $result = json_decode( $body );
         
-        if ( json_last_error() !== JSON_ERROR_NONE ) {
+        if ( json_last_error() !== JSON_ERROR_NONE || ! is_object( $result ) ) {
+            if ( function_exists( 'zibal_cf7_log_error' ) ) {
+                zibal_cf7_log_error(
+                    'zibal_api',
+                    __( 'پاسخ API زیبال JSON معتبر نبود.', 'zibal-cf7' ),
+                    array(
+                        'endpoint' => $endpoint,
+                        'user_agent' => $user_agent,
+                        'json_error' => json_last_error_msg(),
+                        'body' => mb_substr( $body, 0, 500 ),
+                    ),
+                    'error'
+                );
+            }
+
             return false;
         }
         
         return $result;
+    }
+
+    private function get_user_agent() {
+        $site_url = function_exists( 'home_url' ) ? home_url( '/' ) : '';
+        return sprintf(
+            'Zibal-CF7/%s; WordPress/%s; %s',
+            defined( 'ZIBAL_CF7_VERSION' ) ? ZIBAL_CF7_VERSION : 'unknown',
+            function_exists( 'get_bloginfo' ) ? get_bloginfo( 'version' ) : 'unknown',
+            esc_url_raw( $site_url )
+        );
     }
     
     private function sanitize_mobile( $mobile ) {

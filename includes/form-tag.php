@@ -19,16 +19,19 @@ function zibal_cf7_add_form_tag() {
 function zibal_cf7_form_tag_handler( $tag ) {
     $amount = $tag->get_option( 'amount', 'int', true );
     $button_text = ! empty( $tag->values ) ? $tag->values[0] : __( 'پرداخت', 'zibal-cf7' );
+    $client_token = wp_generate_password( 32, false, false );
     
     $html = sprintf(
         '<div class="zibal-cf7-payment-wrapper">
             <input type="hidden" name="_zibal_amount" value="%d" />
+            <input type="hidden" name="_zibal_client_token" value="%s" />
             <button type="submit" class="wpcf7-form-control wpcf7-submit zibal-payment-button">
                 <span class="zibal-button-text">%s</span>
                 <span class="zibal-button-spinner" style="display:none;">%s</span>
             </button>
         </div>',
         esc_attr( $amount ),
+        esc_attr( $client_token ),
         esc_html( $button_text ),
         esc_html__( 'در حال پردازش...', 'zibal-cf7' )
     );
@@ -140,31 +143,37 @@ function zibal_cf7_editor_panel_content( $contact_form ) {
 add_action( 'wpcf7_after_save', 'zibal_cf7_save_contact_form', 10, 1 );
 
 function zibal_cf7_save_contact_form( $contact_form ) {
-    if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'wpcf7-save-contact-form_' . $contact_form->id() ) ) {
+    $post_id = $contact_form->id();
+
+    if ( ! current_user_can( 'wpcf7_edit_contact_form', $post_id ) && ! current_user_can( 'manage_options' ) ) {
         return;
     }
-    
-    $post_id = $contact_form->id();
+
+    $nonce = isset( $_POST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ) : '';
+
+    if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wpcf7-save-contact-form_' . $post_id ) ) {
+        return;
+    }
     
     $enabled = isset( $_POST['zibal_enabled'] ) ? '1' : '0';
     update_post_meta( $post_id, '_zibal_enabled', $enabled );
     
     if ( isset( $_POST['zibal_amount'] ) ) {
-        $amount = absint( $_POST['zibal_amount'] );
+        $amount = absint( wp_unslash( $_POST['zibal_amount'] ) );
         update_post_meta( $post_id, '_zibal_amount', $amount );
     } else {
         update_post_meta( $post_id, '_zibal_amount', '' );
     }
     
     if ( isset( $_POST['zibal_amount_field'] ) ) {
-        $amount_field = sanitize_text_field( $_POST['zibal_amount_field'] );
+        $amount_field = sanitize_key( wp_unslash( $_POST['zibal_amount_field'] ) );
         update_post_meta( $post_id, '_zibal_amount_field', $amount_field );
     } else {
         update_post_meta( $post_id, '_zibal_amount_field', '' );
     }
     
     if ( isset( $_POST['zibal_description'] ) ) {
-        $description = sanitize_text_field( $_POST['zibal_description'] );
+        $description = sanitize_text_field( wp_unslash( $_POST['zibal_description'] ) );
         update_post_meta( $post_id, '_zibal_description', $description );
     } else {
         update_post_meta( $post_id, '_zibal_description', '' );

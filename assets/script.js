@@ -6,15 +6,23 @@
             const form = event.target;
             const zibalButton = form.querySelector('.zibal-payment-button');
             const formId = form.querySelector('input[name="_wpcf7"]')?.value;
+
+            if (redirectFromApiResponse(event.detail, zibalButton)) {
+                return;
+            }
             
             if (!formId) {
                 resetButton(zibalButton);
                 return;
             }
             
-            const restUrl = (typeof zibalCF7 !== 'undefined' && zibalCF7.restUrl) 
+            const clientToken = form.querySelector('input[name="_zibal_client_token"]')?.value || '';
+            const restUrlBase = (typeof zibalCF7 !== 'undefined' && zibalCF7.restUrl)
                 ? zibalCF7.restUrl + 'redirect/' + formId
                 : window.location.origin + '/wp-json/zibal-cf7/v1/redirect/' + formId;
+            const restUrl = clientToken
+                ? restUrlBase + '?token=' + encodeURIComponent(clientToken)
+                : restUrlBase;
             
             fetch(restUrl, {
                 method: 'GET',
@@ -57,6 +65,12 @@
                     console.error('[Zibal CF7] Error:', error);
                     resetButton(zibalButton);
                 });
+        }, false);
+
+        document.addEventListener('wpcf7mailsent', function(event) {
+            const form = event.target;
+            const zibalButton = form.querySelector('.zibal-payment-button');
+            redirectFromApiResponse(event.detail, zibalButton);
         }, false);
         
         document.addEventListener('wpcf7invalid', function(event) {
@@ -113,9 +127,14 @@
     }
     
     function checkAndRedirect(formId, zibalButton) {
-        const restUrl = (typeof zibalCF7 !== 'undefined' && zibalCF7.restUrl) 
+        const form = zibalButton ? zibalButton.closest('form') : null;
+        const clientToken = form?.querySelector('input[name="_zibal_client_token"]')?.value || '';
+        const restUrlBase = (typeof zibalCF7 !== 'undefined' && zibalCF7.restUrl)
             ? zibalCF7.restUrl + 'redirect/' + formId
             : window.location.origin + '/wp-json/zibal-cf7/v1/redirect/' + formId;
+        const restUrl = clientToken
+            ? restUrlBase + '?token=' + encodeURIComponent(clientToken)
+            : restUrlBase;
         
         fetch(restUrl, {
             method: 'GET',
@@ -150,6 +169,24 @@
                 console.error('[Zibal CF7] Fallback error:', error);
                 resetButton(zibalButton);
             });
+    }
+
+    function redirectFromApiResponse(detail, zibalButton) {
+        const redirectUrl = detail?.apiResponse?.zibal?.redirect_url || '';
+
+        if (!redirectUrl) {
+            return false;
+        }
+
+        if (zibalButton) {
+            const buttonText = zibalButton.querySelector('.zibal-button-text');
+            if (buttonText) {
+                buttonText.textContent = 'در حال انتقال...';
+            }
+        }
+
+        window.location.assign(redirectUrl);
+        return true;
     }
     
     function resetButton(zibalButton) {

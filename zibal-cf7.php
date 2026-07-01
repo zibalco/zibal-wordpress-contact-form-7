@@ -3,7 +3,7 @@
  * Plugin Name: درگاه پرداخت زیبال برای Contact Form 7
  * Plugin URI: https://zibal.ir
  * Description: اتصال حرفه‌ای Contact Form 7 به درگاه پرداخت زیبال
- * Version: 2.0.0
+ * Version: 2.0.8
  * Author:Abolfazla Abdollahi
  * Author URI: https://zibal.ir
  */
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'ZIBAL_CF7_VERSION', '2.0.0' );
+define( 'ZIBAL_CF7_VERSION', '2.0.8' );
 define( 'ZIBAL_CF7_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ZIBAL_CF7_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ZIBAL_CF7_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -40,14 +40,23 @@ function zibal_cf7_missing_cf7_notice() {
 register_activation_hook( __FILE__, 'zibal_cf7_activate' );
 
 function zibal_cf7_activate() {
+    zibal_cf7_install_schema();
+    zibal_cf7_ensure_transaction_schema();
+    update_option( 'zibal_cf7_version', ZIBAL_CF7_VERSION );
+}
+
+function zibal_cf7_install_schema() {
     global $wpdb;
+
     $table_name = $wpdb->prefix . 'zibal_cf7_transactions';
     $charset_collate = $wpdb->get_charset_collate();
-    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+    $sql = "CREATE TABLE $table_name (
         id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
         form_id bigint(20) NOT NULL,
         track_id varchar(100) DEFAULT NULL,
+        callback_token varchar(64) DEFAULT NULL,
         ref_number varchar(100) DEFAULT NULL,
+        payer_card varchar(32) DEFAULT NULL,
         amount bigint(20) NOT NULL,
         status varchar(20) NOT NULL DEFAULT 'pending',
         email varchar(100) DEFAULT NULL,
@@ -58,12 +67,94 @@ function zibal_cf7_activate() {
         updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         KEY track_id (track_id),
+        KEY callback_token (callback_token),
         KEY form_id (form_id),
         KEY status (status)
     ) $charset_collate;";
+
     require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
     dbDelta( $sql );
-    update_option( 'zibal_cf7_version', ZIBAL_CF7_VERSION );
+
+    zibal_cf7_ensure_transaction_schema();
+}
+
+function zibal_cf7_ensure_transaction_schema() {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'zibal_cf7_transactions';
+    $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) );
+
+    if ( $table_exists !== $table_name ) {
+        return;
+    }
+
+    $callback_token_column = $wpdb->get_var( "SHOW COLUMNS FROM $table_name LIKE 'callback_token'" );
+
+    if ( 'callback_token' !== $callback_token_column ) {
+        $alter_result = $wpdb->query( "ALTER TABLE $table_name ADD callback_token varchar(64) DEFAULT NULL AFTER track_id" );
+
+        if ( false === $alter_result && function_exists( 'zibal_cf7_log_error' ) ) {
+            zibal_cf7_log_error(
+                'database',
+                __( 'افزودن ستون callback_token به جدول تراکنش‌ها ناموفق بود.', 'zibal-cf7' ),
+                array(
+                    'table' => $table_name,
+                    'db_error' => $wpdb->last_error,
+                ),
+                'critical'
+            );
+        }
+    }
+
+    $callback_token_index = (int) $wpdb->get_var(
+        $wpdb->prepare(
+            'SELECT COUNT(1)
+             FROM INFORMATION_SCHEMA.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = %s
+             AND INDEX_NAME = %s',
+            $table_name,
+            'callback_token'
+        )
+    );
+
+    if ( 0 === $callback_token_index ) {
+        $index_result = $wpdb->query( "ALTER TABLE $table_name ADD KEY callback_token (callback_token)" );
+
+        if ( false === $index_result && function_exists( 'zibal_cf7_log_error' ) ) {
+            if ( false !== stripos( (string) $wpdb->last_error, 'Duplicate key name' ) ) {
+                return;
+            }
+
+            zibal_cf7_log_error(
+                'database',
+                __( 'افزودن ایندکس callback_token به جدول تراکنش‌ها ناموفق بود.', 'zibal-cf7' ),
+                array(
+                    'table' => $table_name,
+                    'db_error' => $wpdb->last_error,
+                ),
+                'warning'
+            );
+        }
+    }
+
+    $payer_card_column = $wpdb->get_var( "SHOW COLUMNS FROM $table_name LIKE 'payer_card'" );
+
+    if ( 'payer_card' !== $payer_card_column ) {
+        $alter_result = $wpdb->query( "ALTER TABLE $table_name ADD payer_card varchar(32) DEFAULT NULL AFTER ref_number" );
+
+        if ( false === $alter_result && function_exists( 'zibal_cf7_log_error' ) ) {
+            zibal_cf7_log_error(
+                'database',
+                __( 'افزودن ستون شماره کارت پرداخت کننده به جدول تراکنش‌ها ناموفق بود.', 'zibal-cf7' ),
+                array(
+                    'table' => $table_name,
+                    'db_error' => $wpdb->last_error,
+                ),
+                'warning'
+            );
+        }
+    }
 }
 
 register_deactivation_hook( __FILE__, 'zibal_cf7_deactivate' );
@@ -92,6 +183,14 @@ function zibal_cf7_load_textdomain() {
     load_plugin_textdomain( 'zibal-cf7', false, dirname( ZIBAL_CF7_PLUGIN_BASENAME ) . '/languages' );
 }
 
+add_action( 'plugins_loaded', 'zibal_cf7_maybe_upgrade' );
+
+function zibal_cf7_maybe_upgrade() {
+    if ( get_option( 'zibal_cf7_version' ) !== ZIBAL_CF7_VERSION ) {
+        zibal_cf7_activate();
+    }
+}
+
 add_action( 'wp_enqueue_scripts', 'zibal_cf7_enqueue_scripts' );
 
 function zibal_cf7_enqueue_scripts() {
@@ -100,6 +199,5 @@ function zibal_cf7_enqueue_scripts() {
     wp_enqueue_script( 'zibal-cf7-script', ZIBAL_CF7_PLUGIN_URL . 'assets/script.js', array( 'contact-form-7' ), ZIBAL_CF7_VERSION, true );
     wp_localize_script( 'zibal-cf7-script', 'zibalCF7', array(
         'restUrl' => rest_url( 'zibal-cf7/v1/' ),
-        'nonce' => wp_create_nonce( 'wp_rest' ),
     ) );
 }

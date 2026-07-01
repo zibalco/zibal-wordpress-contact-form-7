@@ -52,7 +52,7 @@ class Zibal_CF7_Service extends WPCF7_Service {
     }
     
     public function link() {
-        echo '<a href="https://zibal.ir" target="_blank">zibal.ir</a>';
+        echo '<a href="https://zibal.ir" target="_blank" rel="noopener noreferrer">zibal.ir</a>';
     }
     
     protected function menu_page_url( $args = '' ) {
@@ -80,13 +80,17 @@ class Zibal_CF7_Service extends WPCF7_Service {
     
     public function load( $action = '' ) {
         if ( 'setup' === $action && 'POST' === $_SERVER['REQUEST_METHOD'] ) {
+            if ( ! current_user_can( 'wpcf7_manage_integration' ) && ! current_user_can( 'manage_options' ) ) {
+                wp_die( esc_html__( 'شما اجازه انجام این عملیات را ندارید.', 'zibal-cf7' ) );
+            }
+
             check_admin_referer( 'wpcf7-zibal-setup' );
             
             if ( ! empty( $_POST['reset'] ) ) {
                 $this->reset_data();
                 $redirect_to = $this->menu_page_url( 'action=setup' );
             } else {
-                $merchant_id = isset( $_POST['merchant_id'] ) ? sanitize_text_field( $_POST['merchant_id'] ) : '';
+                $merchant_id = isset( $_POST['merchant_id'] ) ? sanitize_text_field( wp_unslash( $_POST['merchant_id'] ) ) : '';
                 
                 if ( $merchant_id ) {
                     $this->merchant_id = $merchant_id;
