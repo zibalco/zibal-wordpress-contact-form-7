@@ -1,5 +1,14 @@
 (function() {
     'use strict';
+
+    function redirectToZibal(url) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('referrerpolicy', 'origin');
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+    }
     
     function initZibalCF7() {
         document.addEventListener('wpcf7submit', function(event) {
@@ -56,7 +65,7 @@
                             }
                         }
                         
-                        window.location.href = data.redirect_url;
+                        redirectToZibal(data.redirect_url);
                     } else {
                         resetButton(zibalButton);
                     }
@@ -160,7 +169,7 @@
                 }
                 
                 if (data.success && data.redirect_url) {
-                    window.location.href = data.redirect_url;
+                    redirectToZibal(data.redirect_url);
                 } else {
                     resetButton(zibalButton);
                 }
@@ -185,7 +194,7 @@
             }
         }
 
-        window.location.assign(redirectUrl);
+        redirectToZibal(redirectUrl);
         return true;
     }
     
